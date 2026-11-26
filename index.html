@@ -27,7 +27,7 @@ button{font-family:inherit;border:0;border-radius:12px;font-size:17px;padding:12
 .t .tm{background:var(--y);color:#3b2b00;font-weight:700;border-radius:10px;padding:6px 10px;font-size:18px;direction:ltr}
 .t .nm{flex:1;font-size:18px}.t small{display:block;color:#7a72a8;font-size:12px}
 .t .x{width:auto;background:#ffe3e3;color:#b00020;padding:6px 12px;font-size:15px}
-.t.done .nm{text-decoration:line-through;opacity:.5}
+.cal{text-decoration:none;font-size:22px;padding:0 4px}.t.done .nm{text-decoration:line-through;opacity:.5}
 #st{font-size:14px;margin-bottom:10px;padding:10px;border-radius:12px;background:#fff3cd}
 #st.ok{background:#d9f7e6}
 #ring{position:fixed;inset:0;background:#5b3fd1ee;color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;z-index:9;padding:20px}
@@ -46,21 +46,28 @@ button{font-family:inherit;border:0;border-radius:12px;font-size:17px;padding:12
 <button id="add">إضافة للخطة</button>
 </div>
 <div id="list"></div>
-<p class="empty" style="font-size:12px">التنبيه بيشتغل والتطبيق مفتوح أو شغال في الخلفية. للتأكد افتح التطبيق قبل المواعيد المهمة.</p>
+<p class="empty" style="font-size:12px">في نسخة الويب: التنبيه بيشتغل والتطبيق مفتوح أو شغال في الخلفية. الزر 📅 بيضيف المهمة لتقويم جوجل فيفتكرك حتى لو التطبيق مقفول. نسخة الأندرويد (APK) بتنبه حتى وهو مقفول.</p>
 </main>
 <div id="ring"><div style="font-size:60px">⏰</div><h2 id="rt"></h2><div id="rs"></div><button id="rok">تمام</button></div>
 <script>
 const $=id=>document.getElementById(id);
 const DN=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 let T=JSON.parse(localStorage.getItem('plan')||'[]');
-const save=()=>localStorage.setItem('plan',JSON.stringify(T));
+const NATIVE=!!window.Android;const save=()=>{localStorage.setItem('plan',JSON.stringify(T));if(NATIVE){try{Android.sync(JSON.stringify(T))}catch(e){}}};
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 $('days').innerHTML=DN.map((n,i)=>'<label><input type="checkbox" value="'+i+'"><span>'+n.slice(0,3)+'</span></label>').join('');
 $('rep').onchange=()=>$('days').style.display=$('rep').value==='w'?'flex':'none';
+const BYD=['SU','MO','TU','WE','TH','FR','SA'];
+function calUrl(t){const p=n=>String(n).padStart(2,'0');const [hh,mm]=t.time.split(':').map(Number);let d=new Date();if(t.rep==='o'&&t.date){const q=t.date.split('-').map(Number);d=new Date(q[0],q[1]-1,q[2])}
+else if(t.rep==='w'){for(let i=0;i<8;i++){const x=new Date();x.setDate(x.getDate()+i);if(t.days.includes(x.getDay())){d=x;break}}}
+d.setHours(hh,mm,0,0);const e=new Date(d.getTime()+15*60000);const f=x=>x.getFullYear()+p(x.getMonth()+1)+p(x.getDate())+'T'+p(x.getHours())+p(x.getMinutes())+'00';
+let u='https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent('خطتي: '+t.name)+'&dates='+f(d)+'/'+f(e)+'&details='+encodeURIComponent('تنبيه من تطبيق خطتي');
+if(t.rep==='d')u+='&recur='+encodeURIComponent('RRULE:FREQ=DAILY');else if(t.rep==='w')u+='&recur='+encodeURIComponent('RRULE:FREQ=WEEKLY;BYDAY='+t.days.map(i=>BYD[i]).join(','));
+u+='&ctz='+encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);return u}
 function desc(t){return t.rep==='d'?'كل يوم':t.rep==='o'?'مرة واحدة · '+t.date:t.days.map(i=>DN[i]).join('، ')}
 function render(){const l=$('list');if(!T.length){l.innerHTML='<p class="empty">مفيش مهام لسه. ضيف أول مهمة 👆</p>';return}
 const s=[...T].sort((a,b)=>a.time.localeCompare(b.time));
-l.innerHTML=s.map(t=>'<div class="card t'+(t.done===today()?' done':'')+'"><div class="tm">'+t.time+'</div><div class="nm">'+t.name.replace(/</g,'&lt;')+'<small>'+desc(t)+'</small></div><button class="x" data-id="'+t.id+'">حذف</button></div>').join('');
+l.innerHTML=s.map(t=>'<div class="card t'+(t.done===today()?' done':'')+'"><div class="tm">'+t.time+'</div><div class="nm">'+t.name.replace(/</g,'&lt;')+'<small>'+desc(t)+'</small></div><a class="cal" href="'+calUrl(t)+'" target="_blank" rel="noopener" title="أضف لتقويم جوجل">📅</a><button class="x" data-id="'+t.id+'">حذف</button></div>').join('');
 l.querySelectorAll('.x').forEach(b=>b.onclick=()=>{T=T.filter(x=>x.id!=b.dataset.id);save();render()})}
 $('add').onclick=async()=>{const name=$('name').value.trim();if(!name){$('name').focus();return}
 const t={id:Date.now(),name,time:$('time').value,rep:$('rep').value,last:''};
@@ -68,13 +75,13 @@ if(t.rep==='w'){t.days=[...document.querySelectorAll('#days input:checked')].map
 if(t.rep==='o'){const n=new Date(),[h,m]=t.time.split(':');const d=new Date();d.setHours(+h,+m,0,0);if(d<n)d.setDate(d.getDate()+1);t.date=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 T.push(t);save();$('name').value='';render();await ask()};
 async function ask(){if('Notification' in window&&Notification.permission==='default')await Notification.requestPermission();status()}
-function status(){const s=$('st');if(!('Notification' in window)){s.textContent='المتصفح ده مش بيدعم الإشعارات. هيظهرلك تنبيه جوه التطبيق بس.';return}
+function status(){const s=$('st');if(NATIVE){s.className='ok';s.textContent='✅ منبّه أندرويد حقيقي: التنبيه بيشتغل حتى لو التطبيق مقفول';return}if(!('Notification' in window)){s.textContent='المتصفح ده مش بيدعم الإشعارات. هيظهرلك تنبيه جوه التطبيق بس.';return}
 if(Notification.permission==='granted'){s.className='ok';s.textContent='✅ الإشعارات شغالة'}else if(Notification.permission==='denied'){s.textContent='⚠️ الإشعارات مقفولة. فعّلها من إعدادات المتصفح للتطبيق.'}else{s.innerHTML='🔔 دوس هنا عشان تفعّل الإشعارات';s.style.cursor='pointer';s.onclick=ask}}
 async function fire(t){$('rt').textContent='دلوقتي وقت: '+t.name;$('rs').textContent=t.time;$('ring').style.display='flex';
 if(navigator.vibrate)navigator.vibrate([400,200,400,200,400]);
 try{if(Notification.permission==='granted'){const r=await navigator.serviceWorker.ready;r.showNotification('⏰ خطتي: '+t.name,{body:'جه وقتها ('+t.time+')',icon:'icon.svg',tag:'p'+t.id,vibrate:[300,150,300],requireInteraction:true})}}catch(e){}}
 $('rok').onclick=()=>$('ring').style.display='none';
-function tick(){const n=new Date(),hm=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'),td=today();let ch=false;
+function tick(){if(NATIVE)return;const n=new Date(),hm=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'),td=today();let ch=false;
 T.forEach(t=>{if(t.time>hm||t.last===td+t.time)return;
 const ok=t.rep==='d'||(t.rep==='w'&&t.days.includes(n.getDay()))||(t.rep==='o'&&t.date===td);
 // fire if within 10 min window (covers app resumed shortly after)
@@ -82,7 +89,7 @@ const [h,m]=t.time.split(':');const diff=(n.getHours()*60+n.getMinutes())-(+h*60
 if(ok&&diff<=10){t.last=td+t.time;t.done=td;ch=true;fire(t)}else if(ok&&diff>10&&t.last!==td+t.time){t.last=td+t.time}});
 if(ch){T=T.filter(t=>!(t.rep==='o'&&t.last&&t.date<td));save();render()}}
 setInterval(tick,15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});
-render();status();tick();
+render();status();tick();if(NATIVE){try{Android.sync(JSON.stringify(T))}catch(e){}}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body>
